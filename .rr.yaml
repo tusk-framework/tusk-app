@@ -1,0 +1,4 @@
+# Tusk Engine creates an isolated RoadRunner configuration in .tusk/runtime.
+# This minimal file is not loaded by `tusk start`; that generated config owns
+# the worker command, listeners, and runtime plugins.
+version: "3"
