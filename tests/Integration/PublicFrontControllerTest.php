@@ -21,31 +21,37 @@ final class PublicFrontControllerTest extends TestCase
         self::assertIsString($address);
         $port = substr($address, (int) strrpos($address, ':') + 1);
 
+        $logPath = tempnam(sys_get_temp_dir(), 'tusk-app-http-');
+        self::assertIsString($logPath);
         $pipes = [];
         $process = proc_open(
             [PHP_BINARY, '-S', '127.0.0.1:'.$port, '-t', self::ROOT.'/public', self::ROOT.'/public/index.php'],
-            [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            [0 => ['pipe', 'r'], 1 => ['file', $logPath, 'a'], 2 => ['file', $logPath, 'a']],
             $pipes,
             self::ROOT,
         );
-        self::assertIsResource($process, 'PHP built-in server did not start.');
+        if (! is_resource($process)) {
+            $log = file_get_contents($logPath);
+            unlink($logPath);
+            self::fail('PHP built-in server did not start: '.$log);
+        }
         fclose($pipes[0]);
-        stream_set_blocking($pipes[1], false);
-        stream_set_blocking($pipes[2], false);
 
         try {
             $client = new Client(['base_uri' => 'http://127.0.0.1:'.$port, 'connect_timeout' => 0.2, 'timeout' => 2, 'http_errors' => false, 'proxy' => '']);
             $ready = false;
-            for ($attempt = 0; $attempt < 40; $attempt++) {
+            for ($attempt = 0; $attempt < 100; $attempt++) {
                 try {
-                    $client->get('/api/products');
-                    $ready = true;
-                    break;
+                    $probe = $client->get('/api/products');
+                    if ($probe->getStatusCode() === 200) {
+                        $ready = true;
+                        break;
+                    }
                 } catch (ConnectException) {
-                    usleep(50_000);
+                    usleep(100_000);
                 }
             }
-            self::assertTrue($ready, 'PHP built-in server did not become ready.');
+            self::assertTrue($ready, 'PHP built-in server did not become ready: '.file_get_contents($logPath));
 
             $created = $client->post('/api/products', [
                 'headers' => ['Accept' => 'application/json', 'Content-Type' => 'application/json'],
@@ -64,11 +70,8 @@ final class PublicFrontControllerTest extends TestCase
             self::assertSame('/api/products', $problem['instance']);
         } finally {
             proc_terminate($process);
-            stream_get_contents($pipes[1]);
-            stream_get_contents($pipes[2]);
-            fclose($pipes[1]);
-            fclose($pipes[2]);
             proc_close($process);
+            unlink($logPath);
         }
     }
 }
