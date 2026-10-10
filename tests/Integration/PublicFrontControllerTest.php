@@ -40,16 +40,18 @@ final class PublicFrontControllerTest extends TestCase
         try {
             $client = new Client(['base_uri' => 'http://127.0.0.1:'.$port, 'connect_timeout' => 0.2, 'timeout' => 2, 'http_errors' => false, 'proxy' => '']);
             $ready = false;
-            for ($attempt = 0; $attempt < 100; $attempt++) {
+            $readinessDeadline = microtime(true) + 10;
+            while (microtime(true) < $readinessDeadline) {
                 try {
                     $probe = $client->get('/api/products');
-                    if ($probe->getStatusCode() === 200) {
+                    if ($probe->getStatusCode() === 200 && (string) $probe->getBody() === '[]') {
                         $ready = true;
                         break;
                     }
                 } catch (ConnectException) {
-                    usleep(100_000);
+                    // Retry until the wall-clock deadline to tolerate slow CI startup.
                 }
+                usleep(100_000);
             }
             self::assertTrue($ready, 'PHP built-in server did not become ready: '.file_get_contents($logPath));
 
