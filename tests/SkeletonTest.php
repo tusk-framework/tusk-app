@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests;
 
+use App\Http\InvalidJsonResponse;
 use App\Http\RequestBodyParser;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
@@ -104,6 +105,33 @@ final class SkeletonTest extends TestCase
         $this->expectException(\JsonException::class);
 
         (new RequestBodyParser)->parse('application/json', '{"name":', []);
+    }
+
+    public function test_json_content_type_rejects_an_empty_body(): void
+    {
+        $this->expectException(\JsonException::class);
+
+        (new RequestBodyParser)->parse('application/json', '', []);
+    }
+
+    public function test_json_content_type_rejects_a_non_object_body(): void
+    {
+        $this->expectException(\UnexpectedValueException::class);
+
+        (new RequestBodyParser)->parse('application/json', '[]', []);
+    }
+
+    public function test_invalid_json_response_is_a_rfc9457_bad_request(): void
+    {
+        $response = InvalidJsonResponse::forPath('/api/products');
+        $problem = json_decode((string) $response->getBody(), true, 512, JSON_THROW_ON_ERROR);
+
+        self::assertSame(400, $response->getStatusCode());
+        self::assertSame('application/problem+json', $response->getHeaderLine('Content-Type'));
+        self::assertSame('about:blank', $problem['type']);
+        self::assertSame('Bad Request', $problem['title']);
+        self::assertSame(400, $problem['status']);
+        self::assertSame('/api/products', $problem['instance']);
     }
 
     public function test_legacy_bootstrap_entrypoints_are_absent(): void

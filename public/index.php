@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\InvalidJsonResponse;
 use App\Http\RequestBodyParser;
 use Nyholm\Psr7\ServerRequest;
 use Nyholm\Psr7\UploadedFile;
@@ -13,14 +14,10 @@ $rawBody = file_get_contents('php://input');
 try {
     $parsedBody = (new RequestBodyParser)->parse((string) $contentType, $rawBody === false ? '' : $rawBody, $_POST);
 } catch (JsonException|UnexpectedValueException) {
-    http_response_code(400);
-    header('Content-Type: application/problem+json');
-    echo json_encode([
-        'type' => 'about:blank',
-        'title' => 'Bad Request',
-        'status' => 400,
-        'instance' => parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/',
-    ], JSON_THROW_ON_ERROR);
+    $response = InvalidJsonResponse::forPath(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/');
+    http_response_code($response->getStatusCode());
+    header('Content-Type: '.$response->getHeaderLine('Content-Type'));
+    echo $response->getBody();
 
     return;
 }

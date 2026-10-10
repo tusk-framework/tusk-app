@@ -14,6 +14,7 @@ final class RequestBodyParser
      * @return array<string, mixed>
      *
      * @throws JsonException
+     * @throws UnexpectedValueException
      */
     public function parse(string $contentType, string $rawBody, array $formBody): array
     {
@@ -23,7 +24,7 @@ final class RequestBodyParser
         }
 
         if (trim($rawBody) === '') {
-            return [];
+            throw new JsonException('A JSON request body must not be empty.');
         }
 
         $decoded = json_decode($rawBody, false, 512, JSON_THROW_ON_ERROR);

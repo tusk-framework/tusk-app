@@ -39,10 +39,11 @@ curl -i -H 'Content-Type: application/json' -H 'Accept: application/json' \
   http://127.0.0.1:8080/api/products
 ```
 
-In PowerShell, use this single-line command (PowerShell's `curl` may be an alias):
+In Windows PowerShell, use its HTTP cmdlet to avoid native-argument quoting differences:
 
 ```powershell
-curl.exe -i -H "Content-Type: application/json" -H "Accept: application/json" -d '{"name":"Notebook","sku":"NOTE-1"}' http://127.0.0.1:8080/api/products
+$body = @{ name = 'Notebook'; sku = 'NOTE-1' } | ConvertTo-Json -Compress
+Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/api/products' -ContentType 'application/json' -Headers @{ Accept = 'application/json' } -Body $body
 ```
 
 ## Development
