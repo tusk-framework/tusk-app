@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests;
 
+use App\Http\RequestBodyParser;
 use Nyholm\Psr7\ServerRequest;
 use PHPUnit\Framework\TestCase;
 use Tusk\Foundation\Application;
@@ -81,9 +82,33 @@ final class SkeletonTest extends TestCase
         self::assertStringNotContainsString('SECRET-INPUT', (string) $response->getBody());
     }
 
+    public function test_json_content_type_decodes_the_request_body(): void
+    {
+        $parser = new RequestBodyParser;
+
+        self::assertSame(
+            ['name' => 'Notebook', 'sku' => 'NOTE-1'],
+            $parser->parse('application/json; charset=utf-8', '{"name":"Notebook","sku":"NOTE-1"}', []),
+        );
+    }
+
+    public function test_non_json_content_type_keeps_the_form_body(): void
+    {
+        $parser = new RequestBodyParser;
+
+        self::assertSame(['name' => 'Notebook'], $parser->parse('application/x-www-form-urlencoded', '', ['name' => 'Notebook']));
+    }
+
+    public function test_json_content_type_rejects_malformed_json(): void
+    {
+        $this->expectException(\JsonException::class);
+
+        (new RequestBodyParser)->parse('application/json', '{"name":', []);
+    }
+
     public function test_legacy_bootstrap_entrypoints_are_absent(): void
     {
-        foreach (['worker.php', 'bootstrap/worker.php', 'config/worker.php', 'config/tusk.php', '.tusk/runtime/worker.php'] as $file) {
+        foreach (['worker.php', 'bootstrap/worker.php', 'config.php', 'bootstrap/config.php', 'config/worker.php', 'config/tusk.php', '.tusk/runtime/worker.php'] as $file) {
             self::assertFileDoesNotExist(self::ROOT.'/'.$file, $file);
         }
     }

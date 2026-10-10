@@ -1,11 +1,29 @@
 <?php
 
+use App\Http\RequestBodyParser;
 use Nyholm\Psr7\ServerRequest;
 use Nyholm\Psr7\UploadedFile;
 
 require __DIR__.'/../vendor/autoload.php';
 
 $application = require __DIR__.'/../bootstrap/app.php';
+$headers = function_exists('getallheaders') ? getallheaders() : [];
+$contentType = $headers['Content-Type'] ?? $headers['content-type'] ?? $_SERVER['CONTENT_TYPE'] ?? '';
+$rawBody = file_get_contents('php://input');
+try {
+    $parsedBody = (new RequestBodyParser)->parse((string) $contentType, $rawBody === false ? '' : $rawBody, $_POST);
+} catch (JsonException|UnexpectedValueException) {
+    http_response_code(400);
+    header('Content-Type: application/problem+json');
+    echo json_encode([
+        'type' => 'about:blank',
+        'title' => 'Bad Request',
+        'status' => 400,
+        'instance' => parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/',
+    ], JSON_THROW_ON_ERROR);
+
+    return;
+}
 $normalizeUpload = static function (array $file) use (&$normalizeUpload) {
     $tmpName = $file['tmp_name'] ?? null;
 
@@ -39,13 +57,13 @@ foreach ($_FILES as $field => $file) {
 $request = new ServerRequest(
     $_SERVER['REQUEST_METHOD'] ?? 'GET',
     $_SERVER['REQUEST_URI'] ?? '/',
-    function_exists('getallheaders') ? getallheaders() : [],
-    file_get_contents('php://input'),
+    $headers,
+    $rawBody === false ? '' : $rawBody,
     '1.1',
     $_SERVER,
 );
 $request = $request
-    ->withParsedBody($_POST)
+    ->withParsedBody($parsedBody)
     ->withCookieParams($_COOKIE)
     ->withUploadedFiles($uploadedFiles);
 $response = $application->handle($request);
